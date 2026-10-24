@@ -34,4 +34,21 @@ export const walletService = {
       }),
     })
   },
+
+  /**
+   * Deposits demo funds from the system treasury faucet into the user's wallet.
+   * Safe development-only demo feature that updates authoritative balance and writes double-entry ledger entries.
+   */
+  async depositDemoFunds(walletId, amount, idempotencyKey) {
+    const payload = {
+      amount: typeof amount === 'string' ? parseFloat(amount) : amount,
+    }
+    if (idempotencyKey) {
+      payload.idempotencyKey = idempotencyKey
+    }
+    return await apiRequest(`/wallets/${walletId}/deposit`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
 }

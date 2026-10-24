@@ -5,6 +5,7 @@ import { walletService } from '../services/walletService'
 import { transferService } from '../services/transferService'
 import { authService } from '../services/authService'
 import { WalletCard } from '../components/WalletCard'
+import { DemoDepositModal } from '../components/DemoDepositModal'
 import { formatCurrency, formatDateTime } from '../utils/formatters'
 import {
   Send,
@@ -17,6 +18,7 @@ import {
   Plus,
   ShieldCheck,
   Zap,
+  Coins,
 } from 'lucide-react'
 
 export function Dashboard() {
@@ -28,6 +30,7 @@ export function Dashboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isCreatingPrimary, setIsCreatingPrimary] = useState(false)
+  const [depositTargetWallet, setDepositTargetWallet] = useState(null)
 
   const loadDashboardData = useCallback(async () => {
     setIsLoading(true)
@@ -215,6 +218,17 @@ export function Dashboard() {
               <span>Send Money</span>
             </Link>
 
+            {activeWallet && (
+              <button
+                onClick={() => setDepositTargetWallet(activeWallet)}
+                className="btn btn-secondary btn-lg"
+                title={`Deposit demo funds into active ${activeWallet.currency} wallet`}
+              >
+                <Coins size={17} color="var(--lime)" />
+                <span>Add Demo Funds</span>
+              </button>
+            )}
+
             <Link to="/profile" className="btn btn-secondary">
               <PlusCircle size={16} />
               <span>Open Currency Account</span>
@@ -282,7 +296,11 @@ export function Dashboard() {
         ) : (
           <div className="wallet-grid">
             {wallets.map((wallet) => (
-              <WalletCard key={wallet.id} wallet={wallet} />
+              <WalletCard
+                key={wallet.id}
+                wallet={wallet}
+                onDeposit={(w) => setDepositTargetWallet(w)}
+              />
             ))}
           </div>
         )}
@@ -367,6 +385,17 @@ export function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Demo Deposit Modal */}
+      {depositTargetWallet && (
+        <DemoDepositModal
+          wallet={depositTargetWallet}
+          onClose={() => setDepositTargetWallet(null)}
+          onSuccess={async () => {
+            await loadDashboardData()
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -2,6 +2,7 @@ package com.wallet.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wallet.dto.CreateWalletRequest;
+import com.wallet.dto.DemoDepositRequest;
 import com.wallet.dto.TransferRequest;
 import com.wallet.entity.User;
 import com.wallet.entity.Wallet;
@@ -487,5 +488,122 @@ class WalletAndTransferIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", hasSize(0)))
                 .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    // =========================================================================
+    // Demo Deposit Tests
+    // =========================================================================
+
+    @Test
+    @DisplayName("Authenticated user can successfully deposit demo funds into their own wallet")
+    void depositDemoFundsSuccess() throws Exception {
+        BigDecimal initialBalance = aliceUsdWallet.getBalance(); // 500.0000
+        BigDecimal depositAmount = new BigDecimal("250.5000");
+
+        DemoDepositRequest request = new DemoDepositRequest(depositAmount, "dep-key-1");
+
+        mockMvc.perform(post("/api/wallets/" + aliceUsdWallet.getId() + "/deposit")
+                        .header("Authorization", aliceToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(aliceUsdWallet.getId()))
+                .andExpect(jsonPath("$.userId").value(alice.getId()))
+                .andExpect(jsonPath("$.currency").value("USD"))
+                .andExpect(jsonPath("$.balance").value(initialBalance.add(depositAmount).doubleValue()));
+
+        // Authoritative balance in repository is updated
+        Wallet reloadedWallet = walletRepository.findById(aliceUsdWallet.getId()).orElseThrow();
+        assertEquals(0, initialBalance.add(depositAmount).compareTo(reloadedWallet.getBalance()));
+
+        // Double-entry transfer and ledger entries are persisted
+        assertEquals(1, transferRepository.findAll().size());
+        assertEquals(2, ledgerEntryRepository.findAll().size());
+
+        // Deposit is visible in transfers list for Alice
+        mockMvc.perform(get("/api/transfers")
+                        .header("Authorization", aliceToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].recipientWalletId").value(aliceUsdWallet.getId()))
+                .andExpect(jsonPath("$.content[0].amount").value(250.5));
+    }
+
+    @Test
+    @DisplayName("Deposit endpoint rejects unauthorized user depositing into another user's wallet with 403 Forbidden")
+    void depositDemoFundsRejectsUnauthorizedAccess() throws Exception {
+        DemoDepositRequest request = new DemoDepositRequest(new BigDecimal("100.0000"), "dep-key-unauth");
+
+        // Bob attempts to deposit into Alice's wallet
+        mockMvc.perform(post("/api/wallets/" + aliceUsdWallet.getId() + "/deposit")
+                        .header("Authorization", bobToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
+    }
+
+    @Test
+    @DisplayName("Deposit endpoint returns 404 Not Found for non-existent wallet")
+    void depositDemoFundsReturns404ForNonExistentWallet() throws Exception {
+        DemoDepositRequest request = new DemoDepositRequest(new BigDecimal("100.0000"), "dep-key-404");
+
+        mockMvc.perform(post("/api/wallets/999999/deposit")
+                        .header("Authorization", aliceToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404));
+    }
+
+    @Test
+    @DisplayName("Deposit endpoint rejects negative or zero deposit amounts with 400 Bad Request")
+    void depositDemoFundsRejectsInvalidAmounts() throws Exception {
+        // Zero amount
+        mockMvc.perform(post("/api/wallets/" + aliceUsdWallet.getId() + "/deposit")
+                        .header("Authorization", aliceToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new DemoDepositRequest(BigDecimal.ZERO, "dep-zero"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+
+        // Negative amount
+        mockMvc.perform(post("/api/wallets/" + aliceUsdWallet.getId() + "/deposit")
+                        .header("Authorization", aliceToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new DemoDepositRequest(new BigDecimal("-50.00"), "dep-neg"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    @DisplayName("Idempotent deposit replays existing deposit without duplicating balance addition")
+    void depositDemoFundsIdempotencyReplay() throws Exception {
+        BigDecimal initialBalance = aliceUsdWallet.getBalance();
+        BigDecimal depositAmount = new BigDecimal("150.0000");
+        String idempotencyKey = "dep-idempotent-key";
+
+        DemoDepositRequest request = new DemoDepositRequest(depositAmount, idempotencyKey);
+
+        // First deposit execution
+        mockMvc.perform(post("/api/wallets/" + aliceUsdWallet.getId() + "/deposit")
+                        .header("Authorization", aliceToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.balance").value(initialBalance.add(depositAmount).doubleValue()));
+
+        // Second duplicate deposit execution with same idempotency key
+        mockMvc.perform(post("/api/wallets/" + aliceUsdWallet.getId() + "/deposit")
+                        .header("Authorization", aliceToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        // Balance must not be added twice
+        Wallet reloadedWallet = walletRepository.findById(aliceUsdWallet.getId()).orElseThrow();
+        assertEquals(0, initialBalance.add(depositAmount).compareTo(reloadedWallet.getBalance()));
+        assertEquals(1, transferRepository.findAll().size());
+        assertEquals(2, ledgerEntryRepository.findAll().size());
     }
 }

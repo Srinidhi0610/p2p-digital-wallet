@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../context/useAuth'
 import { walletService } from '../services/walletService'
 import { formatCurrency, formatDateTime } from '../utils/formatters'
+import { DemoDepositModal } from '../components/DemoDepositModal'
 import {
   Mail,
   Calendar,
@@ -14,6 +15,7 @@ import {
   RefreshCw,
   Hash,
   Zap,
+  Coins,
 } from 'lucide-react'
 
 const COMMON_CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'INR', 'JPY', 'SGD', 'CHF']
@@ -30,6 +32,7 @@ export function Profile() {
   const [error, setError] = useState(null)
   const [successMsg, setSuccessMsg] = useState(null)
   const [copiedWalletId, setCopiedWalletId] = useState(null)
+  const [depositTargetWallet, setDepositTargetWallet] = useState(null)
 
   const loadWallets = useCallback(async () => {
     setIsLoadingWallets(true)
@@ -344,24 +347,36 @@ export function Profile() {
                       {formatDateTime(wallet.createdAt)}
                     </td>
                     <td>
-                      <button
-                        onClick={() => handleCopy(wallet.id)}
-                        className="btn btn-secondary btn-sm"
-                        title="Copy Wallet ID to clipboard"
-                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
-                      >
-                        {copiedWalletId === wallet.id ? (
-                          <>
-                            <Check size={13} color="var(--lime)" />
-                            <span style={{ color: 'var(--lime)' }}>Copied</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy size={13} />
-                            <span>Copy ID</span>
-                          </>
-                        )}
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
+                        <button
+                          onClick={() => setDepositTargetWallet(wallet)}
+                          className="btn btn-lime btn-sm"
+                          title="Deposit demo funds into this wallet partition"
+                          style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem' }}
+                        >
+                          <Coins size={13} />
+                          <span>Add Demo Funds</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleCopy(wallet.id)}
+                          className="btn btn-secondary btn-sm"
+                          title="Copy Wallet ID to clipboard"
+                          style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
+                        >
+                          {copiedWalletId === wallet.id ? (
+                            <>
+                              <Check size={13} color="var(--lime)" />
+                              <span style={{ color: 'var(--lime)' }}>Copied</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={13} />
+                              <span>Copy ID</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -370,6 +385,18 @@ export function Profile() {
           </div>
         )}
       </div>
+
+      {/* Demo Deposit Modal */}
+      {depositTargetWallet && (
+        <DemoDepositModal
+          wallet={depositTargetWallet}
+          onClose={() => setDepositTargetWallet(null)}
+          onSuccess={async (updatedWallet) => {
+            setSuccessMsg(`Successfully credited demo funds to ${updatedWallet.currency} Wallet #${updatedWallet.id}!`)
+            await loadWallets()
+          }}
+        />
+      )}
     </div>
   )
 }

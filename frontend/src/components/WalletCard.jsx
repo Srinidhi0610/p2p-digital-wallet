@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { formatCurrency } from '../utils/formatters'
-import { Send, Copy, Check } from 'lucide-react'
+import { Send, Copy, Check, Coins } from 'lucide-react'
 
-export function WalletCard({ wallet }) {
+export function WalletCard({ wallet, onDeposit }) {
   const [copied, setCopied] = useState(false)
 
   if (!wallet) return null
@@ -85,17 +85,34 @@ export function WalletCard({ wallet }) {
           </button>
         </div>
 
-        <Link
-          to={`/send?senderId=${wallet.id}&currency=${currency}`}
-          className="btn btn-lime btn-sm"
-          style={{
-            padding: '0.35rem 0.85rem',
-            fontSize: '0.78rem',
-          }}
-        >
-          <Send size={13} />
-          <span>Send</span>
-        </Link>
+        <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
+          {onDeposit && (
+            <button
+              onClick={() => onDeposit(wallet)}
+              className="btn btn-secondary btn-sm"
+              style={{
+                padding: '0.35rem 0.65rem',
+                fontSize: '0.78rem',
+              }}
+              title="Add Demo Funds"
+            >
+              <Coins size={13} />
+              <span>Add Funds</span>
+            </button>
+          )}
+
+          <Link
+            to={`/send?senderId=${wallet.id}&currency=${currency}`}
+            className="btn btn-lime btn-sm"
+            style={{
+              padding: '0.35rem 0.85rem',
+              fontSize: '0.78rem',
+            }}
+          >
+            <Send size={13} />
+            <span>Send</span>
+          </Link>
+        </div>
       </div>
     </div>
   )

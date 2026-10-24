@@ -1,6 +1,7 @@
 package com.wallet.controller;
 
 import com.wallet.dto.CreateWalletRequest;
+import com.wallet.dto.DemoDepositRequest;
 import com.wallet.dto.WalletResponse;
 import com.wallet.exception.InvalidCredentialsException;
 import com.wallet.security.UserPrincipal;
@@ -52,5 +53,25 @@ public class WalletController {
         }
         WalletResponse response = walletService.getWalletById(principal.getId(), id);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{id}/deposit")
+    public ResponseEntity<WalletResponse> depositDemoFunds(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable("id") Long id,
+            @Valid @RequestBody DemoDepositRequest request) {
+        if (principal == null) {
+            throw new InvalidCredentialsException("Unauthenticated request");
+        }
+        WalletResponse response = walletService.depositDemoFunds(principal.getId(), id, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{id}/demo-deposit")
+    public ResponseEntity<WalletResponse> demoDeposit(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable("id") Long id,
+            @Valid @RequestBody DemoDepositRequest request) {
+        return depositDemoFunds(principal, id, request);
     }
 }
